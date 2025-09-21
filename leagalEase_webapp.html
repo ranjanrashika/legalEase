@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LegalEase - Document Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            --nav-active-bg: #eff6ff;
+            --nav-active-text: #2563eb;
+            --nav-inactive-text: #4b5563;
+        }
+        .nav-link.active {
+            background-color: var(--nav-active-bg);
+            color: var(--nav-active-text);
+            font-weight: 600;
+        }
+        .nav-link {
+            color: var(--nav-inactive-text);
+        }
+        .highlight-risk-high { background-color: rgba(255, 159, 159, 0.5); }
+        .highlight-risk-medium { background-color: rgba(255, 223, 159, 0.5); }
+        .highlight-risk-low { background-color: rgba(159, 223, 255, 0.5); }
+        .clause-card {
+            border-left-width: 4px;
+        }
+        .border-risk-high { border-color: #EF4444; }
+        .border-risk-medium { border-color: #F59E0B; }
+        .border-risk-low { border-color: #3B82F6; }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        .gemini-loader {
+            border: 3px solid rgba(59, 130, 246, 0.2);
+            border-top-color: #3B82F6;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #gemini-answer, #generic-modal-body {
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <!-- Auth View -->
+    <div id="auth-view" class="min-h-screen flex items-center justify-center bg-gray-100">
+        <div class="w-full max-w-md p-8 space-y-8 bg-white shadow-lg rounded-2xl">
+            
+            <!-- Login Form -->
+            <div id="login-form">
+                <div class="text-center">
+                    <i class="fas fa-balance-scale text-4xl text-blue-600 mb-2"></i>
+                    <h2 class="text-3xl font-bold text-gray-900">Welcome to LegalEase</h2>
+                    <p class="mt-2 text-sm text-gray-600">Sign in to continue to your dashboard</p>
+                </div>
+                <form class="mt-8 space-y-6" action="#" method="POST">
+                    <div id="login-error" class="hidden text-red-500 text-sm text-center"></div>
+                    <div class="rounded-md shadow-sm -space-y-px">
+                        <div>
+                            <label for="login-email-address" class="sr-only">Email address</label>
+                            <input id="login-email-address" name="email" type="email" autocomplete="email" required class="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Email address" value="lawyer@legalease.com">
+                        </div>
+                        <div>
+                            <label for="login-password" class="sr-only">Password</label>
+                            <input id="login-password" name="password" type="password" autocomplete="current-password" required class="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Password" value="password123">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm">
+                            <a href="#" class="font-medium text-blue-600 hover:text-blue-500">Forgot your password?</a>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button type="submit" id="login-btn" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Sign in
+                        </button>
+                    </div>
+                </form>
+                <p class="mt-6 text-center text-sm text-gray-600">
+                    Don't have an account?
+                    <button id="show-signup-btn" class="font-medium text-blue-600 hover:text-blue-500">
+                        Create one now
+                    </button>
+                </p>
+            </div>
+
+            <!-- Signup Form -->
+            <div id="signup-form" class="hidden">
+                 <div class="text-center">
+                    <i class="fas fa-balance-scale text-4xl text-blue-600 mb-2"></i>
+                    <h2 class="text-3xl font-bold text-gray-900">Create your Account</h2>
+                    <p class="mt-2 text-sm text-gray-600">Get started with the future of legal tech</p>
+                </div>
+                <form class="mt-8 space-y-6" action="#" method="POST">
+                    <div id="signup-error" class="hidden text-red-500 text-sm text-center"></div>
+                    <div class="rounded-md shadow-sm -space-y-px">
+                         <div>
+                            <label for="signup-name" class="sr-only">Full Name</label>
+                            <input id="signup-name" name="name" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Full Name">
+                        </div>
+                        <div>
+                            <label for="signup-email-address" class="sr-only">Email address</label>
+                            <input id="signup-email-address" name="email" type="email" autocomplete="email" required class="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Email address">
+                        </div>
+                        <div>
+                            <label for="signup-password" class="sr-only">Password</label>
+                            <input id="signup-password" name="password" type="password" autocomplete="new-password" required class="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" placeholder="Password">
+                        </div>
+                    </div>
+
+                    <div>
+                        <button type="submit" id="signup-btn" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Create Account
+                        </button>
+                    </div>
+                </form>
+                 <p class="mt-6 text-center text-sm text-gray-600">
+                    Already have an account?
+                    <button id="show-login-btn" class="font-medium text-blue-600 hover:text-blue-500">
+                        Sign in
+                    </button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div id="app" class="hidden flex-col md:flex-row min-h-screen">
+        <!-- Sidebar -->
+        <aside class="w-full md:w-64 bg-white border-r border-gray-200 p-6 flex-shrink-0 flex flex-col">
+            <div class="flex items-center space-x-3 mb-10">
+                <i class="fas fa-balance-scale text-3xl text-blue-600"></i>
+                <h1 class="text-2xl font-bold text-gray-800">LegalEase</h1>
+            </div>
+            <nav id="main-nav" class="space-y-2">
+                <a href="#dashboard" class="nav-link flex items-center space-x-3 p-3 rounded-lg">
+                    <i class="fas fa-tachometer-alt w-6"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#documents" class="nav-link flex items-center space-x-3 p-3 rounded-lg">
+                    <i class="fas fa-file-alt w-6"></i>
+                    <span>Documents</span>
+                </a>
+                 <a href="#reports" class="nav-link flex items-center space-x-3 p-3 rounded-lg">
+                    <i class="fas fa-shield-alt w-6"></i>
+                    <span>Risk Reports</span>
+                </a>
+                <a href="#settings" class="nav-link flex items-center space-x-3 p-3 rounded-lg">
+                    <i class="fas fa-cog w-6"></i>
+                    <span>Settings</span>
+                </a>
+            </nav>
+            <div class="mt-auto pt-10">
+                <div class="text-center">
+                    <button id="logout-btn" class="w-full text-gray-600 hover:bg-gray-100 p-3 rounded-lg"><i class="fas fa-sign-out-alt mr-2"></i>Logout</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-6 md:p-10">
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="main-view">
+                <header class="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-900">Dashboard</h2>
+                        <p class="text-gray-500">Welcome back, <span id="user-name-display">Legal Professional</span>!</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button class="p-2 rounded-full hover:bg-gray-200">
+                            <i class="fas fa-bell text-gray-600"></i>
+                        </button>
+                        <img id="user-avatar-display" src="https://placehold.co/40x40/E2E8F0/4A5568?text=LP" alt="User Avatar" class="w-10 h-10 rounded-full">
+                    </div>
+                </header>
+
+                <div id="upload-section" class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center">
+                    <div class="border-2 border-dashed border-gray-300 rounded-xl p-8">
+                        <i class="fas fa-cloud-upload-alt text-5xl text-blue-500 mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Upload and Analyze Document</h3>
+                        <p class="text-gray-500 mb-6">Drag & drop an image file, or use your webcam.</p>
+                        <div class="flex justify-center space-x-4">
+                            <input type="file" id="file-upload" class="hidden" accept=".jpg,.jpeg,.png,.webp">
+                            <button id="upload-btn" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors">
+                                <i class="fas fa-file-upload mr-2"></i> Choose File
+                            </button>
+                            <button id="webcam-btn" class="bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors">
+                                <i class="fas fa-camera mr-2"></i> Use Webcam
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-10">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Recent Analyses</h3>
+                    <div id="recent-analyses-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                         <div id="new-analysis-placeholder" class="hidden bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+                            <div class="loader mx-auto mb-4"></div>
+                            <p id="analysis-status" class="text-gray-600 font-semibold">Analyzing...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documents View -->
+            <div id="documents-view" class="main-view hidden">
+                <h2 class="text-3xl font-bold text-gray-900 mb-8">My Documents</h2>
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Document Name</th>
+                                    <th scope="col" class="px-6 py-3">Date Analyzed</th>
+                                    <th scope="col" class="px-6 py-3">Risks Found</th>
+                                    <th scope="col" class="px-6 py-3">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="documents-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risk Reports View -->
+            <div id="reports-view" class="main-view hidden">
+                <h2 class="text-3xl font-bold text-gray-900 mb-8">Risk Intelligence</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border"><p class="text-sm text-gray-500">Total Documents</p><p id="total-docs-stat" class="text-2xl font-bold">0</p></div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border"><p class="text-sm text-gray-500">High-Risk Clauses</p><p id="high-risk-stat" class="text-2xl font-bold text-red-600">0</p></div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border"><p class="text-sm text-gray-500">Avg. Risks per Doc</p><p id="avg-risk-stat" class="text-2xl font-bold">0</p></div>
+                </div>
+                <div class="bg-white p-8 rounded-2xl shadow-sm border">
+                    <h3 class="font-bold text-xl mb-4">Recent High-Priority Findings</h3>
+                    <div id="high-risk-clauses-list" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settings-view" class="main-view hidden">
+                <h2 class="text-3xl font-bold text-gray-900 mb-8">Settings</h2>
+                <div class="bg-white p-8 rounded-2xl shadow-sm border max-w-2xl">
+                    <form id="settings-form" class="space-y-8">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Profile Information</h3>
+                            <div class="mt-4 grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-x-4">
+                                <div><label class="block text-sm font-medium text-gray-700">Full Name</label><input type="text" id="settings-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></div>
+                                <div><label class="block text-sm font-medium text-gray-700">Email Address</label><input type="email" id="settings-email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100" disabled></div>
+                            </div>
+                        </div>
+                        <hr/>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Notifications</h3>
+                            <div class="mt-4 space-y-4">
+                                <div class="flex items-center justify-between"><span class="flex-grow flex flex-col"><span class="text-sm font-medium text-gray-900">Email Notifications</span><span class="text-sm text-gray-500">Get an email when a new high-risk clause is detected.</span></span><button type="button" class="bg-blue-600 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent" role="switch"><span class="translate-x-5 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0"></span></button></div>
+                                <div class="flex items-center justify-between"><span class="flex-grow flex flex-col"><span class="text-sm font-medium text-gray-900">Browser Notifications</span><span class="text-sm text-gray-500">Receive push notifications for important updates.</span></span><button type="button" class="bg-gray-200 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent" role="switch"><span class="translate-x-0 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0"></span></button></div>
+                            </div>
+                        </div>
+                         <div class="flex justify-end pt-4"><button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">Save Changes</button></div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Analysis View -->
+            <div id="analysis-view" class="main-view hidden">
+                 <header class="flex justify-between items-center mb-8">
+                    <div>
+                        <button id="back-to-documents-btn" class="text-blue-600 hover:underline mb-2"><i class="fas fa-arrow-left mr-2"></i>Back to Documents</button>
+                        <h2 id="document-title" class="text-3xl font-bold text-gray-900"></h2>
+                        <p id="risk-summary-text" class="text-gray-500"></p>
+                    </div>
+                </header>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border"><h3 class="font-bold text-xl mb-4">Document Content</h3><div id="document-content" class="text-gray-700 leading-relaxed space-y-4 max-h-[70vh] overflow-y-auto pr-4"></div></div>
+                    <div class="lg:col-span-1 space-y-6">
+                         <div class="bg-white p-6 rounded-2xl shadow-sm border"><h3 class="font-bold text-xl mb-4">Analysis Summary</h3><div id="analysis-summary-counts" class="space-y-3"></div></div>
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border"><h3 class="font-bold text-xl mb-4 flex items-center">✨ Ask a Question</h3><div class="relative"><input type="text" id="gemini-question" class="w-full border-gray-300 rounded-md shadow-sm pr-10" placeholder="e.g., What is the notice period?"><button id="ask-gemini-btn" class="absolute inset-y-0 right-0 px-3 flex items-center text-blue-600 hover:text-blue-800"><i class="fas fa-paper-plane"></i></button></div><div id="gemini-answer-container" class="mt-4 text-sm text-gray-700 bg-gray-50 p-3 rounded-md min-h-[50px]"><div id="gemini-loader" class="hidden w-5 h-5 loader gemini-loader"></div><p id="gemini-answer"></p></div></div>
+                        <div id="risk-analysis-content" class="space-y-6 max-h-[calc(100vh-500px)] overflow-y-auto pr-2"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="webcam-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"><div class="bg-white p-8 rounded-2xl shadow-lg max-w-2xl w-full"><h2 class="text-2xl font-bold mb-4">Webcam Capture</h2><div class="bg-gray-900 rounded-lg overflow-hidden"><video id="webcam-video" class="w-full h-auto" autoplay></video></div><div class="mt-6 flex justify-end space-x-4"><button id="capture-btn" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">Capture</button><button id="close-modal-btn" class="bg-gray-200 text-gray-700 font-semibold py-2 px-6 rounded-lg hover:bg-gray-300">Cancel</button></div></div></div>
+        
+            <!-- Generic Modal -->
+            <div id="generic-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div class="bg-white p-8 rounded-2xl shadow-lg max-w-2xl w-full">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 id="generic-modal-title" class="text-2xl font-bold"></h2>
+                        <button id="generic-modal-close-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+                    </div>
+                    <div id="generic-modal-body" class="text-gray-700"></div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged, 
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword, 
+            signOut,
+            updateProfile
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore,
+            collection,
+            addDoc,
+            query,
+            onSnapshot,
+            doc,
+            getDoc
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Your web app's Firebase configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAAO8LR2Nnv5BsE3kKFv1KqbhTrPOGgqvE",
+            authDomain: "legalease-def9c.firebaseapp.com",
+            projectId: "legalease-def9c",
+            storageBucket: "legalease-def9c.firebasestorage.app",
+            messagingSenderId: "496047393822",
+            appId: "1:496047393822:web:52e38dc4b1c9e41cffb20f",
+            measurementId: "G-3DP2EZXJD3"
+        };
+        
+        // --- Initialize Firebase ---
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- DOM Elements ---
+        const authView = document.getElementById('auth-view');
+        const appView = document.getElementById('app');
+        const mainNav = document.getElementById('main-nav');
+        const allViews = document.querySelectorAll('.main-view');
+        const loginForm = document.getElementById('login-form');
+        const signupForm = document.getElementById('signup-form');
+        const showSignupBtn = document.getElementById('show-signup-btn');
+        const showLoginBtn = document.getElementById('show-login-btn');
+        const loginBtn = document.getElementById('login-btn');
+        const signupBtn = document.getElementById('signup-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileUpload = document.getElementById('file-upload');
+        const webcamBtn = document.getElementById('webcam-btn');
+        const backToDocumentsBtn = document.getElementById('back-to-documents-btn');
+        const newAnalysisPlaceholder = document.getElementById('new-analysis-placeholder');
+        const analysisStatus = document.getElementById('analysis-status');
+        const webcamModal = document.getElementById('webcam-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const captureBtn = document.getElementById('capture-btn');
+        const webcamVideo = document.getElementById('webcam-video');
+        const askGeminiBtn = document.getElementById('ask-gemini-btn');
+        const geminiQuestionInput = document.getElementById('gemini-question');
+        const documentsTableBody = document.getElementById('documents-table-body');
+        const riskAnalysisContent = document.getElementById('risk-analysis-content');
+        const genericModal = document.getElementById('generic-modal');
+        const genericModalTitle = document.getElementById('generic-modal-title');
+        const genericModalBody = document.getElementById('generic-modal-body');
+        const genericModalCloseBtn = document.getElementById('generic-modal-close-btn');
+
+        // --- State ---
+        let currentUser = null;
+        let analyzedDocuments = []; 
+        let unsubscribeFromDocuments = null; 
+        let currentDocumentText = '';
+        let stream;
+
+        // --- Gemini API Configuration ---
+        // NOTE: The user's provided Gemini API Key should be placed here if required.
+        // For this prototype, we assume a proxy or environment variable handles it.
+        const GEMINI_API_KEY = ""; 
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+
+        // --- Auth & Navigation Logic ---
+        function showView(viewId) {
+            allViews.forEach(view => view.classList.add('hidden'));
+            const viewToShow = document.getElementById(viewId);
+            if (viewToShow) {
+                viewToShow.classList.remove('hidden');
+            }
+
+            document.querySelectorAll('#main-nav .nav-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${viewId.replace('-view', '')}`) {
+                    link.classList.add('active');
+                }
+            });
+        }
+
+        function showLogin() {
+            appView.classList.add('hidden');
+            authView.classList.remove('hidden');
+            loginForm.classList.remove('hidden');
+            signupForm.classList.add('hidden');
+        }
+
+        function showApp() {
+            authView.classList.add('hidden');
+            appView.classList.remove('hidden');
+            appView.classList.add('flex');
+            showView('dashboard-view');
+        }
+        
+        // --- Auth State Listener ---
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('user-name-display').textContent = user.displayName || 'Legal Pro';
+                const initial = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'L';
+                document.getElementById('user-avatar-display').src = `https://placehold.co/40x40/E2E8F0/4A5568?text=${initial}`;
+                document.getElementById('settings-name').value = user.displayName || '';
+                document.getElementById('settings-email').value = user.email;
+
+                listenForDocuments();
+                showApp();
+            } else {
+                currentUser = null;
+                if (unsubscribeFromDocuments) {
+                    unsubscribeFromDocuments();
+                }
+                showLogin();
+            }
+        });
+
+        // --- Firestore Logic ---
+        function listenForDocuments() {
+            if (unsubscribeFromDocuments) unsubscribeFromDocuments();
+            
+            const docsRef = collection(db, "users", currentUser.uid, "documents");
+            const q = query(docsRef);
+
+            unsubscribeFromDocuments = onSnapshot(q, (querySnapshot) => {
+                analyzedDocuments = [];
+                querySnapshot.forEach((doc) => {
+                    analyzedDocuments.push({ id: doc.id, ...doc.data() });
+                });
+                
+                const currentView = document.querySelector('.main-view:not(.hidden)');
+                if (currentView) {
+                    if (currentView.id === 'documents-view') renderDocumentsPage();
+                    if (currentView.id === 'reports-view') renderReportsPage();
+                }
+            });
+        }
+
+        async function saveAnalysisToFirestore(analysisData) {
+            try {
+                const docsRef = collection(db, "users", currentUser.uid, "documents");
+                await addDoc(docsRef, analysisData);
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                alert("Could not save analysis. Please try again.");
+            }
+        }
+
+        // --- Page Rendering ---
+        function renderDocumentsPage() {
+            documentsTableBody.innerHTML = '';
+            if (analyzedDocuments.length === 0) {
+                documentsTableBody.innerHTML = '<tr><td colspan="4" class="text-center px-6 py-4">No documents analyzed yet.</td></tr>';
+                return;
+            }
+            analyzedDocuments.forEach((doc) => {
+                const riskCounts = doc.riskAnalysis.reduce((acc, item) => {
+                    acc[item.risk] = (acc[item.risk] || 0) + 1; return acc;
+                }, { High: 0, Medium: 0, Low: 0 });
+
+                const row = `
+                    <tr class="bg-white border-b hover:bg-gray-50">
+                        <td class="px-6 py-4 font-medium text-gray-900">${doc.fileName}</td>
+                        <td class="px-6 py-4">${new Date(doc.timestamp).toLocaleDateString()}</td>
+                        <td class="px-6 py-4">
+                            <span class="bg-red-100 text-red-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full">${riskCounts.High} High</span>
+                            <span class="bg-amber-100 text-amber-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full">${riskCounts.Medium} Med</span>
+                            <span class="bg-blue-100 text-blue-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full">${riskCounts.Low} Low</span>
+                        </td>
+                        <td class="px-6 py-4 space-x-2 whitespace-nowrap">
+                            <button data-doc-id="${doc.id}" class="view-analysis-btn font-medium text-blue-600 hover:underline">View</button>
+                            <button data-doc-id="${doc.id}" class="summarize-doc-btn font-medium text-purple-600 hover:underline">✨ Summarize</button>
+                        </td>
+                    </tr>
+                `;
+                documentsTableBody.innerHTML += row;
+            });
+        }
+
+        function renderReportsPage() {
+            document.getElementById('total-docs-stat').textContent = analyzedDocuments.length;
+            let highRiskCount = 0;
+            let totalRisks = 0;
+            const highRiskList = document.getElementById('high-risk-clauses-list');
+            highRiskList.innerHTML = '';
+
+            analyzedDocuments.forEach(doc => {
+                if(doc.riskAnalysis && Array.isArray(doc.riskAnalysis)) {
+                    doc.riskAnalysis.forEach(item => {
+                        totalRisks++;
+                        if (item.risk === 'High') {
+                            highRiskCount++;
+                            const finding = `
+                                <div class="border-l-4 border-red-500 pl-4 py-2">
+                                    <p class="font-semibold">${item.title} <span class="text-xs text-gray-500">in ${doc.fileName}</span></p>
+                                    <p class="text-sm text-gray-600 italic">"${item.clause}"</p>
+                                </div>
+                            `;
+                            highRiskList.innerHTML += finding;
+                        }
+                    });
+                }
+            });
+            
+            if (highRiskCount === 0) {
+                 highRiskList.innerHTML = '<p class="text-gray-500">No high-risk clauses found yet.</p>';
+            }
+            document.getElementById('high-risk-stat').textContent = highRiskCount;
+            document.getElementById('avg-risk-stat').textContent = analyzedDocuments.length > 0 ? (totalRisks / analyzedDocuments.length).toFixed(1) : '0';
+        }
+
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        
+        function displayAnalysisView(data) {
+            currentDocumentText = data.documentText;
+            document.getElementById('document-title').textContent = `Analysis: ${data.fileName}`;
+            
+            let highlightedText = data.documentText;
+            const riskHighlights = { High: 'highlight-risk-high', Medium: 'highlight-risk-medium', Low: 'highlight-risk-low'};
+            if (data.riskAnalysis && Array.isArray(data.riskAnalysis)) {
+                data.riskAnalysis.forEach(item => {
+                    if (item.clause) {
+                        const highlightClass = riskHighlights[item.risk] || '';
+                        highlightedText = highlightedText.replace(new RegExp(escapeRegExp(item.clause), 'g'), `<strong class="${highlightClass}">${item.clause}</strong>`);
+                    }
+                });
+            }
+            document.getElementById('document-content').innerHTML = highlightedText.replace(/\n/g, '<br>');
+
+            riskAnalysisContent.innerHTML = '';
+            const riskCounts = { High: 0, Medium: 0, Low: 0 };
+
+            if (data.riskAnalysis && Array.isArray(data.riskAnalysis)) {
+                data.riskAnalysis.forEach(item => {
+                    riskCounts[item.risk] = (riskCounts[item.risk] || 0) + 1;
+                    const riskColor = { High: 'red', Medium: 'amber', Low: 'blue' };
+                    const riskBorder = { High: 'border-risk-high', Medium: 'border-risk-medium', Low: 'border-risk-low' };
+                    const card = `
+                        <div class="bg-white p-5 rounded-xl shadow-sm border clause-card ${riskBorder[item.risk] || 'border-gray-200'}">
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="font-bold text-lg">${item.title || 'Untitled Risk'}</h4>
+                                <span class="bg-${riskColor[item.risk]}-100 text-${riskColor[item.risk]}-800 text-sm font-semibold px-3 py-1 rounded-full">${item.risk} Risk</span>
+                            </div>
+                            <p class="text-xs text-gray-500 italic bg-gray-100 p-2 rounded">"${item.clause}"</p>
+                            <div class="mt-4">
+                                <p class="font-semibold text-gray-800">Summary:</p>
+                                <p class="text-sm text-gray-600">${item.summary}</p>
+                            </div>
+                             <div class="mt-4">
+                                <p class="font-semibold text-gray-800">Suggestion:</p>
+                                <p class="text-sm text-gray-600 suggestion-text">${item.suggestion}</p>
+                                <button class="rewrite-clause-btn text-sm font-semibold text-purple-600 hover:underline mt-2">✨ Suggest Alternative</button>
+                            </div>
+                        </div>
+                    `;
+                    riskAnalysisContent.innerHTML += card;
+                });
+            }
+
+            document.getElementById('risk-summary-text').textContent = `Showing ${data.riskAnalysis ? data.riskAnalysis.length : 0} identified risks`;
+            const summaryContainer = document.getElementById('analysis-summary-counts');
+            summaryContainer.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <span class="font-semibold text-red-600">High-Risk Clauses</span>
+                    <span class="bg-red-100 text-red-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded-full">${riskCounts.High}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="font-semibold text-amber-600">Medium-Risk Clauses</span>
+                    <span class="bg-amber-100 text-amber-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded-full">${riskCounts.Medium}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="font-semibold text-blue-600">Low-Risk Clauses</span>
+                    <span class="bg-blue-100 text-blue-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded-full">${riskCounts.Low}</span>
+                </div>
+            `;
+
+            showView('analysis-view');
+        }
+        
+        // --- Main Application & Gemini Logic ---
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
+        }
+        
+        function typeWriter(element, text, speed = 10) {
+            element.innerHTML = "";
+            let i = 0;
+            function type() {
+                if (i < text.length) {
+                    element.innerHTML += text.charAt(i);
+                    i++;
+                    setTimeout(type, speed);
+                }
+            }
+            type();
+        }
+
+        async function callGeminiAPI(payload, statusElement, statusText) {
+            if(statusElement) statusElement.textContent = statusText;
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                const result = await response.json();
+                return result.candidates[0].content.parts[0].text;
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                alert("An error occurred while communicating with the AI. Please try again.");
+                return null;
+            }
+        }
+
+        async function extractTextWithGemini(base64ImageData, mimeType) {
+            const payload = {
+                contents: [{ parts: [{ text: "Extract the text from this legal document. Maintain formatting like paragraphs." }, { inline_data: { mime_type: mimeType, data: base64ImageData } }] }]
+            };
+            return await callGeminiAPI(payload, analysisStatus, "Performing OCR on document...");
+        }
+
+        async function analyzeTextWithGemini(text) {
+            const systemPrompt = `You are a world-class legal analyst AI called LegalEase. Your task is to analyze a legal document, identify potentially risky clauses, and provide clear, actionable feedback. For the given document text, identify up to 5 key clauses that contain potential risks. For each clause, provide the following information in a structured JSON format. The JSON output should be an array of objects, where each object has these keys: "risk": (string) Categorize the risk level. Must be one of "High", "Medium", or "Low". "title": (string) A concise, descriptive title for the risk (e.g., "Uncapped Indemnification"). "clause": (string) The exact text of the clause you identified. "summary": (string) A plain-language summary explaining why this clause is a risk. "suggestion": (string) A concrete suggestion on how to mitigate the risk or rephrase the clause.`;
+            const payload = {
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ parts: [{ text }] }],
+                generationConfig: { responseMimeType: "application/json" }
+            };
+            const jsonResponseText = await callGeminiAPI(payload, analysisStatus, "✨ Analyzing clauses for risks...");
+            return jsonResponseText ? JSON.parse(jsonResponseText) : null;
+        }
+        
+        async function askQuestionAboutDocument(question) {
+            const geminiLoader = document.getElementById('gemini-loader');
+            const geminiAnswerEl = document.getElementById('gemini-answer');
+            geminiLoader.classList.remove('hidden');
+            geminiAnswerEl.textContent = '';
+            
+            const prompt = `You are a helpful legal assistant. Based *only* on the document text provided below, answer the user's question concisely. DOCUMENT TEXT: --- ${currentDocumentText} --- USER QUESTION: "${question}"`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+
+            const answer = await callGeminiAPI(payload);
+            if(answer) {
+                typeWriter(geminiAnswerEl, answer);
+            } else {
+                geminiAnswerEl.textContent = "Sorry, I couldn't answer that question.";
+            }
+            geminiLoader.classList.add('hidden');
+        }
+        
+        async function summarizeDocumentWithGemini(documentText) {
+            const prompt = `Provide a concise, one-paragraph, plain-language summary of the following legal document:\n\n---\n\n${documentText}`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            return await callGeminiAPI(payload);
+        }
+
+        async function rewriteClauseWithGemini(clause, suggestionElement) {
+            const originalSuggestion = suggestionElement.textContent;
+            suggestionElement.innerHTML = `<span class="italic text-gray-400">✨ Generating...</span>`;
+            const prompt = `You are a legal expert. The following clause is considered risky: "${clause}". The current suggestion for improvement is: "${originalSuggestion}". Please provide an improved, safer alternative phrasing for this clause. Provide only the rephrased clause text.`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            const rewrittenClause = await callGeminiAPI(payload);
+            if (rewrittenClause) {
+                suggestionElement.innerHTML = `<span class="font-bold">Alternative:</span> ${rewrittenClause}`;
+            } else {
+                suggestionElement.textContent = originalSuggestion; // Revert on failure
+            }
+        }
+
+        async function startAnalysisProcess(file) {
+            showView('dashboard-view');
+            newAnalysisPlaceholder.classList.remove('hidden');
+            
+            const base64Data = await fileToBase64(file);
+            if (!base64Data) { newAnalysisPlaceholder.classList.add('hidden'); return; }
+
+            const extractedText = await extractTextWithGemini(base64Data, file.type);
+            if (!extractedText) { newAnalysisPlaceholder.classList.add('hidden'); return; }
+
+            const analysisResult = await analyzeTextWithGemini(extractedText);
+            newAnalysisPlaceholder.classList.add('hidden');
+
+            if (analysisResult) {
+                const analysisData = {
+                    fileName: file.name,
+                    documentText: extractedText,
+                    riskAnalysis: analysisResult,
+                    timestamp: Date.now()
+                };
+                await saveAnalysisToFirestore(analysisData);
+                displayAnalysisView(analysisData);
+            }
+        }
+        
+        // --- Modal ---
+        function showModal(title, body) {
+            genericModalTitle.textContent = title;
+            genericModalBody.innerHTML = body.replace(/\n/g, '<br>'); // Show loader or text
+            genericModal.classList.remove('hidden');
+        }
+        function hideModal() {
+            genericModal.classList.add('hidden');
+        }
+        genericModalCloseBtn.addEventListener('click', hideModal);
+
+
+        // --- Event Listeners ---
+        mainNav.addEventListener('click', (e) => {
+            e.preventDefault();
+            const link = e.target.closest('.nav-link');
+            if (!link) return;
+            
+            const targetId = link.getAttribute('href').substring(1);
+            if (targetId === 'documents') renderDocumentsPage();
+            if (targetId === 'reports') renderReportsPage();
+
+            showView(`${targetId}-view`);
+        });
+
+        loginBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const email = loginForm.querySelector('#login-email-address').value;
+            const password = loginForm.querySelector('#login-password').value;
+            const errorEl = loginForm.querySelector('#login-error');
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                errorEl.classList.add('hidden');
+            } catch (error) {
+                errorEl.textContent = error.message;
+                errorEl.classList.remove('hidden');
+            }
+        });
+        
+        signupBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const name = signupForm.querySelector('#signup-name').value;
+            const email = signupForm.querySelector('#signup-email-address').value;
+            const password = signupForm.querySelector('#signup-password').value;
+            const errorEl = signupForm.querySelector('#signup-error');
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                await updateProfile(userCredential.user, { displayName: name });
+                errorEl.classList.add('hidden');
+            } catch (error) {
+                errorEl.textContent = error.message;
+                errorEl.classList.remove('hidden');
+            }
+        });
+        
+        logoutBtn.addEventListener('click', () => signOut(auth));
+        showSignupBtn.addEventListener('click', () => { loginForm.classList.add('hidden'); signupForm.classList.remove('hidden'); });
+        showLoginBtn.addEventListener('click', () => { signupForm.classList.add('hidden'); loginForm.classList.remove('hidden'); });
+        uploadBtn.addEventListener('click', () => fileUpload.click());
+        fileUpload.addEventListener('change', e => { if (e.target.files.length) startAnalysisProcess(e.target.files[0]); });
+        backToDocumentsBtn.addEventListener('click', () => showView('documents-view'));
+        askGeminiBtn.addEventListener('click', () => { if(geminiQuestionInput.value.trim()) askQuestionAboutDocument(geminiQuestionInput.value); });
+        geminiQuestionInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') askGeminiBtn.click(); });
+        
+        documentsTableBody.addEventListener('click', async (e) => {
+            const viewBtn = e.target.closest('.view-analysis-btn');
+            const summarizeBtn = e.target.closest('.summarize-doc-btn');
+
+            if (viewBtn) {
+                const docId = viewBtn.dataset.docId;
+                const docRef = doc(db, "users", currentUser.uid, "documents", docId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                     displayAnalysisView({ id: docSnap.id, ...docSnap.data() });
+                } else {
+                    alert("Could not find the document.");
+                }
+            }
+
+            if (summarizeBtn) {
+                const docId = summarizeBtn.dataset.docId;
+                showModal('✨ AI Summary', '<div class="loader mx-auto"></div>');
+                const docRef = doc(db, "users", currentUser.uid, "documents", docId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const summary = await summarizeDocumentWithGemini(docSnap.data().documentText);
+                    if (summary) {
+                        genericModalBody.textContent = summary;
+                    } else {
+                        genericModalBody.textContent = "Could not generate a summary for this document.";
+                    }
+                }
+            }
+        });
+
+        riskAnalysisContent.addEventListener('click', async e => {
+            const rewriteBtn = e.target.closest('.rewrite-clause-btn');
+            if (rewriteBtn) {
+                const card = rewriteBtn.closest('.clause-card');
+                const clause = card.querySelector('p.text-xs').textContent.replace(/"/g, '');
+                const suggestionElement = card.querySelector('.suggestion-text');
+                await rewriteClauseWithGemini(clause, suggestionElement);
+            }
+        });
+
+        webcamBtn.addEventListener('click', async () => {
+            webcamModal.classList.remove('hidden');
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                webcamVideo.srcObject = stream;
+            } catch(err) {
+                console.error("Error accessing webcam: ", err);
+                webcamModal.classList.add('hidden');
+            }
+        });
+        
+        function stopWebcam() {
+             if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            webcamModal.classList.add('hidden');
+        }
+
+        closeModalBtn.addEventListener('click', stopWebcam);
+        captureBtn.addEventListener('click', () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = webcamVideo.videoWidth;
+            canvas.height = webcamVideo.videoHeight;
+            canvas.getContext('2d').drawImage(webcamVideo, 0, 0);
+            
+            canvas.toBlob((blob) => {
+                const file = new File([blob], "webcam_capture.jpeg", { type: "image/jpeg" });
+                stopWebcam();
+                startAnalysisProcess(file);
+            }, 'image/jpeg');
+        });
+
+    </script>
+</body>
+</html>
+
